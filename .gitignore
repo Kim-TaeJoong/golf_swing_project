@@ -3,6 +3,7 @@ venv/
 env/
 
 # 동영상 및 데이터 파일
+data/
 *.mp4
 *.avi
 *.csv
