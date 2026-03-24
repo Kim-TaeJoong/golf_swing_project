@@ -11,7 +11,7 @@ mp_drawing = mp.solutions.drawing_utils
 
 # 2. 연습용 사진 불러오기
 # (파일 이름을 data/raw/ 폴더에 넣은 진짜 사진 이름으로 바꿔주세요!)
-image_name = 'practice.jpg' 
+image_name = 'example.jpg' 
 image_path = os.path.join('data', 'raw', image_name)
 
 image = cv2.imread(image_path)

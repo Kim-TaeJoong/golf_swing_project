@@ -89,3 +89,4 @@ with open(csv_path, mode='w', newline='') as f:
 cap.release()
 pose.close()
 cv2.destroyAllWindows()
+
