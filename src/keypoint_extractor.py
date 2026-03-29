@@ -9,11 +9,11 @@ pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_t
 mp_drawing = mp.solutions.drawing_utils
 
 # 2. 입출력 파일 경로 설정
-video_name = 'posepractice.mp4' # <--- data/raw/ 폴더에 있는 실제 영상 이름
+video_name = 'my_video_cropped.mp4' # <--- data/raw/ 폴더에 있는 실제 영상 이름
 video_path = os.path.join('data', 'raw', video_name)
 
 # 🔥 데이터를 저장할 새로운 경로 설정 (processed 폴더에 저장)
-csv_name = 'swing_landmarks.csv'
+csv_name = 'tigerwoods_swing_landmarks.csv'
 csv_path = os.path.join('data', 'processed', csv_name)
 
 cap = cv2.VideoCapture(video_path)
