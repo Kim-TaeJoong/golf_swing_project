@@ -82,7 +82,7 @@ with open(csv_path, mode='w', newline='') as f:
         cv2.imshow('Golf Swing AI Analysis & Data Extraction', frame_resized)
 
         if cv2.waitKey(10) & 0xFF == ord('q'):
-            print("🛑 사용자가 분석을 강제 종료했습니다.")
+            print("분석 종료.")
             break
 
 # 6. 메모리 해제
