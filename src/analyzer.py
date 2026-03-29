@@ -2,7 +2,7 @@ import pandas as pd
 from utils.utils import calculate_angle, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
 import os
 
-csv_path = os.path.join('data','processed','swing_landmarks.csv')
+csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks.csv')
 df = pd.read_csv(csv_path)
 df = df.dropna()
 
@@ -70,4 +70,4 @@ for idx, row in df.iterrows():
     results.append(result)
     
 result_df = pd.DataFrame(results)
-result_df.to_csv('data/processed/angle.csv',index= False)
+result_df.to_csv('data/processed/tigerwoods_angle.csv',index= False)
