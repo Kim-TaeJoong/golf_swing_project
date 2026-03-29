@@ -1,5 +1,15 @@
 import numpy as np
 
+#주요 관절 포인트
+ANGLE_JOINTS = {
+    'r_elbow':    (12, 14, 16),
+    'l_elbow':    (11, 13, 15),
+    'r_shoulder': (14, 12, 24),
+    'l_shoulder': (13, 11, 23),
+    'r_knee':     (24, 26, 28),
+    'l_knee':     (23, 25, 27),
+}
+
 def calculate_angle(a, b, c):
     """
     세 점의 x, y 좌표를 받아 사이 각도(degrees)를 계산합니다.
@@ -27,6 +37,24 @@ def calculate_angle(a, b, c):
 
     return angle_deg
 
+#상하체의 꼬임 각도를 구함
+def calculate_x_factor(s_left, s_right, h_left, h_right):
+    #어깨선 벡터
+    vec_shoulder = np.array([s_right[0] - s_left[0], s_right[2] - s_left[2]])
+    #골반선 벡터
+    vec_hip = np.array([h_right[0] - h_left[0], h_right[2] - h_left[2]])
+
+    #0도 기준선과 이루는 절대 각도를 구함
+    angle_shoulder = np.degrees(np.arctan2(vec_shoulder[1], vec_shoulder[0]))
+    angle_hip = np.degrees(np.arctan2(vec_hip[1], vec_hip[0]))
+
+    x_factor = abs(angle_shoulder - angle_hip)
+
+    if x_factor > 180.0:
+        x_factor = 360.0 - x_factor
+    
+    return x_factor
+
 
 def normalize_by_pelvis(landmarks):
     """
@@ -40,6 +68,7 @@ def normalize_by_pelvis(landmarks):
     # 1. 두 엉덩이의 정중앙(배꼽 살짝 아래) 좌표를 찾습니다. 여기가 새로운 기준점(0,0)이 됩니다.
     pelvis_x = (left_hip.x + right_hip.x) / 2
     pelvis_y = (left_hip.y + right_hip.y) / 2
+    pelvis_z = (left_hip.z + right_hip.z) / 2
     
     normalized_points = []
     
@@ -47,6 +76,24 @@ def normalize_by_pelvis(landmarks):
     for lm in landmarks:
         norm_x = lm.x - pelvis_x
         norm_y = lm.y - pelvis_y
-        normalized_points.append((norm_x, norm_y))
+        norm_z = lm.z - pelvis_z
+        normalized_points.append((norm_x, norm_y, norm_z))
         
     return normalized_points
+
+def normalize_by_pelvis_csv(row):
+    #csv에서 행을 읽어 골반 기준 정규화
+
+    pelvis_x =  (row['x23'] + row['x24']) / 2
+    pelvis_y =  (row['y23'] + row['y24']) / 2
+    pelvis_z =  (row['z23'] + row['z24']) / 2
+
+    normalized = {}
+
+    for i in range(33):
+        normalized[f'x{i}'] = row[f'x{i}'] - pelvis_x
+        normalized[f'y{i}'] = row[f'y{i}'] - pelvis_y
+        normalized[f'z{i}'] = row[f'z{i}'] - pelvis_z
+        normalized[f'v{i}'] = row[f'v{i}']
+    
+    return normalized
