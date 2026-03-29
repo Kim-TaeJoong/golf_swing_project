@@ -23,6 +23,11 @@ for idx, row in df.iterrows():
     result['pelvis_raw_z'] = (row['z23'] + row['z24']) / 2
 
     row = normalize_by_pelvis_csv(row)
+
+    #머리가 얼마나 흔들리는지 계산
+    result['head_norm_x'] = row['x0']
+    result['head_norm_y'] = row['y0']
+
     #양쪽 팔꿈치, 무릎, 손목 각도 계산
     for angle_name, (a, b, c) in ANGLE_JOINTS.items():
         p1 = [row[f'x{a}'], row[f'y{a}'], row[f'z{a}']]
