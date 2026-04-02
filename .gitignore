@@ -9,4 +9,7 @@ data/
 *.csv
 
 # 파이썬 캐시
+
+.DS_Store
+golf/
 __pycache__/

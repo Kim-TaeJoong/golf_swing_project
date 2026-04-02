@@ -2,6 +2,7 @@ import cv2
 import os
 import yt_dlp
 from utils.utils import normalize_by_pelvis
+import numpy as np  # 🔥 필터 적용을 위해 추가
 
 def download_video(url, output_path):
     ydl_opts = {
@@ -78,23 +79,20 @@ def crop_video_by_area(input_path, output_path, x, y, w, h):
         cap.release()
         out.release()
 
-def process_swing_video(input_path, output_path, start_frame, end_frame, crop_box=None, target_fps=30):
-    """
-    1. 시간 자르기 (Trim)
-    2. 속도 표준화 (30FPS 고정)
-    3. 공간 자르기 (Crop)
-    를 한 번에 수행합니다.
-    """
+
+# ---------------------------------------------------------
+# 🌟 새롭게 추가한 화질 개선(Enhanced) 전처리 함수
+# ---------------------------------------------------------
+def process_swing_video_enhanced(input_path, output_path, start_frame, end_frame, crop_box=None, target_fps=30):
+    """ 시간 자르기 + 크롭 + FPS 고정 + CLAHE(대비) + Sharpening(샤프닝)이 모두 적용된 함수 """
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         print(f"❌ 영상을 열 수 없습니다: {input_path}")
         return
 
-    # 1. 원본 정보 획득
     source_fps = cap.get(cv2.CAP_PROP_FPS)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     
-    # 2. 크롭 영역 설정에 따른 해상도 결정
     if crop_box:
         x, y, w, h = crop_box
     else:
@@ -102,15 +100,19 @@ def process_swing_video(input_path, output_path, start_frame, end_frame, crop_bo
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         x, y = 0, 0
 
-    # 3. 30FPS 변환을 위한 프레임 스킵 간격 계산
-    # 예: 240fps 영상이라면 8프레임마다 1장씩 선택 (240/30 = 8)
     frame_step = max(1, int(source_fps / target_fps))
     
-    # 4. VideoWriter 설정 (target_fps와 크롭된 w, h 사용)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, target_fps, (w, h))
 
-    print(f"전처리 중: {start_frame} ~ {end_frame} 프레임 | {target_fps}FPS | 크롭 {w}x{h}")
+    print(f"🛠️ 고급 전처리 중: {start_frame}~{end_frame} 프레임 | {target_fps}FPS | 크롭 {w}x{h}")
+    print("✨ 영상 화질 개선 필터(CLAHE & Sharpening) 적용 중...")
+
+    # 필터 도구 준비
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    sharpen_kernel = np.array([[-1, -1, -1],
+                               [-1,  9, -1],
+                               [-1, -1, -1]])
 
     current_idx = start_frame
     while current_idx < end_frame:
@@ -118,17 +120,29 @@ def process_swing_video(input_path, output_path, start_frame, end_frame, crop_bo
         if not ret:
             break
         
-        # 30FPS를 맞추기 위해 지정된 스텝만큼만 저장
         if (current_idx - start_frame) % frame_step == 0:
+            # 1. 크롭
             if crop_box:
                 frame = frame[y:y+h, x:x+w]
+            
+            # 2. CLAHE (대비 최적화)
+            lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            cl = clahe.apply(l)
+            limg = cv2.merge((cl, a, b))
+            frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+            # 3. Sharpening (샤프닝)
+            frame = cv2.filter2D(frame, -1, sharpen_kernel)
+
+            # 4. 저장
             out.write(frame)
             
         current_idx += 1
 
     cap.release()
     out.release()
-    print(f"✅ 전처리 완료: {output_path}")
+    print(f"✅ 고급 전처리 완료: {output_path}")
 
 # --- 사용 예시 ---
 #if __name__ == "__main__":
@@ -139,3 +153,63 @@ def process_swing_video(input_path, output_path, start_frame, end_frame, crop_bo
     # tiger_crop = (0, 0, 320, 360) # 640x360 영상의 왼쪽 절반
     # process_swing_video("data/raw/tiger_raw.mp4", "data/processed/tiger_final.mp4", 
     #                     start_frame=0, end_frame=750, crop_box=tiger_crop)
+
+# 1. 타이거우즈 유튭 동영상 다운로드
+    
+'''if __name__ == "__main__":
+    # 1. 다운로드할 유튜브 주소와 저장할 위치 설정
+    video_url = "https://www.youtube.com/watch?v=Jlp8G9paliw"
+    save_path = "data/raw/tiger_raw.mp4" 
+
+    print(f"다운로드 시작: {video_url}")
+    
+    # 2. 다운로드 함수 실행!
+    download_video(video_url, save_path)
+    
+    print(f"✅ 다운로드 완료! 파일 위치: {save_path}")
+'''
+
+# 2. tiger_raw process_swing_video 실행
+'''
+if __name__ == "__main__":
+    # 1. 파일 경로를 다운로드 받은 이름(tiger_raw.mp4)으로 설정
+    input_file = "data/raw/tiger_raw.mp4"
+    output_file = "data/processed/tiger_final.mp4"
+
+    # 2. 원본이 640x360이므로, 왼쪽 절반(정면 뷰)은 가로 320, 세로 360이 됩니다!
+    tiger_crop = (0, 0, 320, 360)
+
+    print("타이거 우즈 유튜브 영상 전처리 시작...")
+
+    # 3. 통합 함수 실행 (0~25초 구간 자르기 + 정면 자르기 + 30FPS 고정 한 번에!)
+    # 30FPS 기준 25초는 750프레임입니다.
+    process_swing_video(
+        input_path=input_file, 
+        output_path=output_file, 
+        start_frame=0, 
+        end_frame=750, 
+        crop_box=tiger_crop,
+        target_fps=30 
+    )
+'''
+
+# 화질 개선 함수 실행
+
+if __name__ == "__main__":
+    input_file = "data/raw/tiger_raw.mp4"
+    output_file = "data/processed/tiger_final_enhanced.mp4"
+
+    # 원본(640x360)의 왼쪽 절반 자르기
+    tiger_crop = (0, 0, 320, 360) 
+
+    print("타이거 우즈 영상 전처리 시작...")
+
+    # 🔥 enhanced 함수를 호출!
+    process_swing_video_enhanced(
+        input_path=input_file, 
+        output_path=output_file, 
+        start_frame=0, 
+        end_frame=750, 
+        crop_box=tiger_crop,
+        target_fps=30 
+    )

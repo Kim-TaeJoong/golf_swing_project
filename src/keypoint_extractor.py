@@ -3,24 +3,33 @@ import mediapipe as mp
 import os
 import csv  # 🔥 CSV 파일을 다루기 위한 기본 라이브러리 추가
 
+
 # 1. MediaPipe 초기화
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
 
 # 2. 입출력 파일 경로 설정
-video_name = 'my_video_cropped.mp4' # <--- data/raw/ 폴더에 있는 실제 영상 이름
-video_path = os.path.join('data', 'raw', video_name)
+video_name = 'tiger_final_enhanced.mp4' # <--- data/raw/ 폴더에 있는 실제 영상 이름
+video_path = os.path.join('data', 'processed', video_name)
 
 # 🔥 데이터를 저장할 새로운 경로 설정 (processed 폴더에 저장)
-csv_name = 'tigerwoods_swing_landmarks.csv'
+csv_name = 'tigerwoods_swing_landmarks_enhanced.csv'
 csv_path = os.path.join('data', 'processed', csv_name)
+
+# 🌟 추가: 뼈대가 그려진 최종 영상을 저장할 경로
+output_video_path = os.path.join('data', 'processed', 'tiger_enhanced_with_skeleton.mp4')
 
 cap = cv2.VideoCapture(video_path)
 
 if not cap.isOpened():
     print(f"🚨 에러: '{video_path}' 영상을 불러올 수 없습니다.")
     exit()
+
+# 🟢 [추가된 부분 시작] 원본 영상의 FPS(초당 프레임) 가져오기
+fps = cap.get(cv2.CAP_PROP_FPS)
+if fps == 0: fps = 30 
+# 🟢 [추가된 부분 끝]
 
 # 🔥 3. CSV 파일 쓰기 준비 및 헤더(머리글) 만들기
 # 엑셀의 첫 번째 줄에 들어갈 이름들을 만듭니다 (예: frame, x0, y0, z0, v0, x1, y1 ...)
@@ -35,6 +44,10 @@ with open(csv_path, mode='w', newline='') as f:
     csv_writer.writerow(landmarks_header) # 첫 줄에 머리글 쓰기
 
     frame_count = 0 # 현재 몇 번째 프레임인지 세는 변수
+    
+    # 🟢 [추가된 부분] VideoWriter(녹화기) 초기화 변수
+    out = None # VideoWriter 초기화 변수
+    
     print(f"🎬 비디오 분석 시작! 데이터는 '{csv_path}'에 실시간으로 저장됩니다...")
 
     # 4. 비디오 프레임 반복 루프
@@ -52,6 +65,12 @@ with open(csv_path, mode='w', newline='') as f:
         scale_factor = target_width / w
         target_height = int(h * scale_factor)
         frame_resized = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+
+        # 🟢 [추가된 부분 시작] 화면 크기에 맞춰서 녹화기 켜기
+        if out is None:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v') # 맥 호환 코덱
+            out = cv2.VideoWriter(output_video_path, fourcc, fps, (target_width, target_height))
+        # 🟢 [추가된 부분 끝]
 
         # 이미지 전처리 및 AI 추론
         image_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
@@ -78,6 +97,10 @@ with open(csv_path, mode='w', newline='') as f:
             frame_data = [frame_count] + [''] * (33 * 4)
         # 엑셀 파일에 한 줄(Row) 추가하기!
         csv_writer.writerow(frame_data)
+        
+        # 🟢 [추가된 부분] 뼈대가 그려진 프레임을 파일에 녹화(저장)하기
+        out.write(frame_resized)
+        
         # 화면 띄우기
         cv2.imshow('Golf Swing AI Analysis & Data Extraction', frame_resized)
 
@@ -87,5 +110,14 @@ with open(csv_path, mode='w', newline='') as f:
 
 # 6. 메모리 해제
 cap.release()
+
+# 🟢 [추가된 부분 시작] 녹화 파일 닫기 (이걸 안 하면 저장된 영상이 깨집니다)
+if out is not None:
+    out.release() 
+# 🟢 [추가된 부분 끝]
+
 pose.close()
 cv2.destroyAllWindows()
+
+## 🟢 [수정된 부분] 완료 메시지
+print(f"✅ 분석 완료! 뼈대 영상이 성공적으로 저장되었습니다: {output_video_path}")
