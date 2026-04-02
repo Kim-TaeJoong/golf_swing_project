@@ -8,6 +8,8 @@ ANGLE_JOINTS = {
     'l_shoulder': (13, 11, 23),
     'r_knee':     (24, 26, 28),
     'l_knee':     (23, 25, 27),
+    'r_wrist':    (14, 16, 18),  # 팔꿈치→손목→오른쪽 엄지 (18번)
+    'l_wrist':    (13, 15, 17),  # 팔꿈치→손목→왼쪽 엄지 (17번)
 }
 
 def calculate_angle(a, b, c):
