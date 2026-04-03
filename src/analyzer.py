@@ -1,17 +1,29 @@
 import pandas as pd
+import numpy as np
 from utils.utils import calculate_angle, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
 import os
 
 csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks_enhanced.csv')
 df = pd.read_csv(csv_path)
-df = df.dropna()
 
+#신뢰도(v) 낮은 좌표 Nan 처리
+for i in range(33):
+    df.loc[df[f'v{i}'] < 0.5, [f'x{i}', f'y{i}', f'z{i}']] = np.nan
+
+#좌표 보간
+coord_cols = [c for c in df.columns if c.startswith(('x', 'y', 'z'))]
+df[coord_cols] = df[coord_cols].interpolate(method='linear', limit_direction='both')
+
+#좌표 스무딩
+df[coord_cols] = df[coord_cols].rolling(window=5, min_periods=1, center=True).mean()
+
+'''
 #smoothing
 cols_to_smooth = [col for col in df.columns if col.startswith(('x', 'y', 'z'))]
 
 # 골라낸 x, y, z 좌표들만 부드럽게 평균을 냅니다. (v 값은 원본 그대로 유지됨)
 df[cols_to_smooth] = df[cols_to_smooth].rolling(window=5, min_periods=1, center=True).mean()
-
+'''
 
 results =[]
 
@@ -38,13 +50,56 @@ for idx, row in df.iterrows():
         p1 = [row[f'x{a}'], row[f'y{a}'], row[f'z{a}']]
         p2 = [row[f'x{b}'], row[f'y{b}'], row[f'z{b}']]
         p3 = [row[f'x{c}'], row[f'y{c}'], row[f'z{c}']]
-
+        
+        #Nan 체크
+        if any(np.isnan(v) for v in p1 + p2 + p3):
+            result[angle_name] = None
+        else:
+            result[angle_name] = calculate_angle(p1, p2, p3)
+        
+        #좌표 보간으로 인해 사용 x
+        '''
         if row[f'v{a}'] > 0.5 and row[f'v{b}'] > 0.5 and row[f'v{c}'] > 0.5:
             result[angle_name] = calculate_angle(p1, p2, p3)
         else:
             result[angle_name] = None
+        '''
     #척추 각도 계산 (어깨의 중간점과 골반 중간점의 좌표를 계산을 통해 구함)
     #상하체 꼬임 계산
+
+    hip_vals = [row['x11'], row['y11'], row['z11'],
+                row['x12'], row['y12'], row['z12'],
+                row['x23'], row['y23'], row['z23'],
+                row['x24'], row['y24'], row['z24']]
+    #Nan 체크
+    if any(np.isnan(v) for v in hip_vals):
+        result['spine_angle'] = None
+        result['x_factor'] = None
+
+    else:
+        shoulder_c = [
+            (row['x11'] + row['x12']) / 2,
+            (row['y11'] + row['y12']) / 2,
+            (row['z11'] + row['z12']) / 2
+        ]
+        hip_c = [
+            (row['x23'] + row['x24']) / 2,
+            (row['y23'] + row['y24']) / 2,
+            (row['z23'] + row['z24']) / 2
+        ]
+        #지면 수직선(골반 중심에서 위로 똑바로 올라간 점)
+        vertical_ref = [hip_c[0], hip_c[1] - 1.0, hip_c[2]]
+
+        result['spine_angle'] = calculate_angle(shoulder_c, hip_c, vertical_ref)
+        
+        s_left = [row['x11'], row['y11'], row['z11']]
+        s_right = [row['x12'], row['y12'], row['z12']]
+        h_left = [row['x23'], row['y23'], row['z23']]
+        h_right = [row['x24'], row['y24'], row['z24']]
+
+        result['x_factor'] = calculate_x_factor(s_left, s_right, h_left, h_right)
+    #좌표 보간으로 인한 사용 x
+    '''
     if row['v11'] > 0.5 and row['v12'] > 0.5 and row['v23'] > 0.5 and row['v24'] > 0.5:
         shoulder_c = [
             (row['x11'] + row['x12']) / 2,
@@ -70,7 +125,7 @@ for idx, row in df.iterrows():
     else:
         result['spine_angle'] = None
         result['x_factor'] = None
-
+    '''
     #결과 리스트에 누적
     results.append(result)
     
