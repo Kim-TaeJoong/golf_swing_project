@@ -2,7 +2,7 @@ import pandas as pd
 from utils.utils import calculate_angle, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
 import os
 
-csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks.csv')
+csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks_enhanced.csv')
 df = pd.read_csv(csv_path)
 df = df.dropna()
 
@@ -23,6 +23,11 @@ for idx, row in df.iterrows():
     result['pelvis_raw_z'] = (row['z23'] + row['z24']) / 2
 
     row = normalize_by_pelvis_csv(row)
+    
+    #6개의 이벤트 기준을 정하기 위한 손목 좌표
+    result['r_wrist_x'] = row['x16']
+    result['r_wrist_y'] = row['y16']
+    result['l_wrist_x'] = row['y15']
 
     #머리가 얼마나 흔들리는지 계산
     result['head_norm_x'] = row['x0']
@@ -70,4 +75,10 @@ for idx, row in df.iterrows():
     results.append(result)
     
 result_df = pd.DataFrame(results)
-result_df.to_csv('data/processed/tigerwoods_angle.csv',index= False)
+
+#각도 좌표에 대한 스무딩 추가(중간값을 사용)
+angle_cols = ['r_elbow', 'l_elbow', 'r_shoulder', 'l_shoulder', 'r_knee', 'l_knee', 'r_wrist', 'l_wrist', 'spine_angle', 'x_factor']
+result_df[angle_cols] = result_df[angle_cols].rolling(window=3, center=True, min_periods=1).median()
+# 2차 평균으로 한번더 제거(과할 수도 있어 일단 사용 x)
+#result_df[angle_cols] = result_df[angle_cols].rolling(window=3, min_periods=1, center=True).mean()
+result_df.to_csv('data/processed/tigerwoods_angle_enhanced.csv',index= False)
