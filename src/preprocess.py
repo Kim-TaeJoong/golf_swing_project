@@ -155,8 +155,8 @@ def process_swing_video_enhanced(input_path, output_path, start_frame, end_frame
     #                     start_frame=0, end_frame=750, crop_box=tiger_crop)
 
 # 1. 타이거우즈 유튭 동영상 다운로드
-    
-'''if __name__ == "__main__":
+'''
+if __name__ == "__main__":
     # 1. 다운로드할 유튜브 주소와 저장할 위치 설정
     video_url = "https://www.youtube.com/watch?v=Jlp8G9paliw"
     save_path = "data/raw/tiger_raw.mp4" 
