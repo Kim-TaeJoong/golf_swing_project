@@ -61,7 +61,7 @@ with open(csv_path, mode='w', newline='') as f:
         
         # [크기 조절] 모니터에 한눈에 들어오도록 세팅
         h, w, c = frame.shape
-        target_width = 1000
+        target_width = 600
         scale_factor = target_width / w
         target_height = int(h * scale_factor)
         frame_resized = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
