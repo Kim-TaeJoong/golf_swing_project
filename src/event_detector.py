@@ -58,6 +58,9 @@ def detect_swing_event(df):
     post_impact_df = detect_df.loc[impact_idx:]
     events['Finish'] = int(post_impact_df['r_wrist_x'].rolling(window=10).var().idxmin())
 
+    #Mid-Backswing
+    
+
     #프레임 순 정렬
     sorted_events = dict(sorted(events.items(), key=lambda item: item[1]))
 
