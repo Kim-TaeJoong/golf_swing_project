@@ -8,18 +8,22 @@ def detect_swing_event(df):
     events = {}
 
     #Top of Swing
-    top_idx = detect_df['x_factor'].idxmax()
+    threshold = detect_df['x_factor'].mean()
+    valid_mask = detect_df['x_factor'] > threshold
+    valid_df = detect_df[valid_mask]
+    top_idx = valid_df['r_wrist_y'].idxmin()
     events['Top of Swing'] = int(df.loc[top_idx, 'frame'])
 
     physical_top_idx = detect_df['r_wrist_y'].idxmin()
-
+    
     #top of swing 이전 부분 검사
     pre_top_df = detect_df.loc[: top_idx]
     #top of swing 이후 부분 검사
-    post_top_df = detect_df.loc[physical_top_idx :]
+    post_top_df = detect_df.loc[top_idx :]
 
     #Address
-    events['Address'] = int(pre_top_df['r_wrist_x'].rolling(window=10).var().idxmin())
+    address_idx = pre_top_df['r_wrist_x'].rolling(window=10).var().idxmin()
+    events['Address'] = int(df.loc[address_idx, 'frame'])
 
     #Takeaway
     address_idx = pre_top_df.index.get_loc(events['Address'])
@@ -47,15 +51,21 @@ def detect_swing_event(df):
         # diff() < 0 인 첫 번째 지점이 바로 감소가 시작된 프레임
         events['Downswing'] = int(post_top_df[downswing_mask].index[0])
     else:
-        events['Downswing'] = events['top'] + 1
+        events['Downswing'] = events['Top of Swing'] + 1
+
 
     #Impact
-    impact_idx = post_top_df['r_wrist_y'].idxmax()
+    #r_wrist_y 위치가 상위 30% 선택
+    wrist_threshold = post_top_df['r_wrist_y'].quantile(0.7)
+
+    impact_candidates = post_top_df[
+        post_top_df['r_wrist_y'] >= wrist_threshold
+    ]
+    impact_idx = impact_candidates['x_factor'].idxmin()
     events['Impact'] = int(df.loc[impact_idx, 'frame'])
 
-
     #Finish
-    post_impact_df = detect_df.loc[impact_idx:]
+    post_impact_df = detect_df.loc[top_idx:]
     events['Finish'] = int(post_impact_df['r_wrist_x'].rolling(window=10).var().idxmin())
 
     #Mid-Backswing
