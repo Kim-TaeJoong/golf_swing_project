@@ -45,14 +45,41 @@ def detect_swing_event(df):
     else:
         events['Takeaway'] = events['Address'] + 10
 
-    #Downswing
+    '''#Downswing
     downswing_mask = post_top_df['x_factor'].diff() < 0
     if downswing_mask.any():
         # diff() < 0 인 첫 번째 지점이 바로 감소가 시작된 프레임
         events['Downswing'] = int(post_top_df[downswing_mask].index[0])
     else:
-        events['Downswing'] = events['Top of Swing'] + 1
+        events['Downswing'] = events['Top of Swing'] + 1'''
 
+    # Downswing
+    # 1. 각 프레임이 이전 프레임보다 감소했는지(True/False) 확인
+    is_decreasing = post_top_df['x_factor'].diff() < 0
+    
+    # 2. 5프레임 단위로 True의 개수를 합산
+    rolling_dec_sum = is_decreasing.rolling(window=5).sum()
+    
+    # 3. 5연속 감소 조건을 만족하는 구간 찾기
+    consecutive_mask = rolling_dec_sum == 5
+    
+    if consecutive_mask.any():
+        # 조건을 만족한 첫 번째 지점
+        end_idx = post_top_df[consecutive_mask].index[0]
+        
+        # 시작 프레임(첫 번째 감소 프레임)으로 되돌아가기 위해 인덱스 위치에서 4를 뺌
+        end_pos = post_top_df.index.get_loc(end_idx)
+        start_idx = post_top_df.index[max(0, end_pos - 4)]
+        
+        events['Downswing'] = int(df.loc[start_idx, 'frame'])
+        
+    elif is_decreasing.any():
+        # 혹시 영상이 너무 짧거나 데이터가 부족해서 5연속이 안 나오면, 
+        # 안전장치(Fallback)로 기존처럼 1프레임 감소라도 잡습니다.
+        events['Downswing'] = int(post_top_df[is_decreasing].index[0])
+        
+    else:
+        events['Downswing'] = events['Top of Swing'] + 1
 
     #Impact
     '''
