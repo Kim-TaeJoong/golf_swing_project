@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from utils.utils import calculate_angle, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
+from utils.utils import calculate_angle, calculate_angle_without_z, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
 import os
 
 csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks_enhanced.csv')
@@ -39,11 +39,17 @@ for idx, row in df.iterrows():
     #6개의 이벤트 기준을 정하기 위한 손목 좌표
     result['r_wrist_x'] = row['x16']
     result['r_wrist_y'] = row['y16']
-    result['l_wrist_x'] = row['y15']
+    result['l_wrist_x'] = row['x15']
 
     #머리가 얼마나 흔들리는지 계산
     result['head_norm_x'] = row['x0']
     result['head_norm_y'] = row['y0']
+
+    #오른쪽 어깨 위치
+    result['r_shoulder_y'] = row['y11']
+
+    #왼쪽 골반 위치
+    result['l_hip'] = row['y23']
 
     #양쪽 팔꿈치, 무릎, 손목 각도 계산
     for angle_name, (a, b, c) in ANGLE_JOINTS.items():
@@ -55,7 +61,7 @@ for idx, row in df.iterrows():
         if any(np.isnan(v) for v in p1 + p2 + p3):
             result[angle_name] = None
         else:
-            result[angle_name] = calculate_angle(p1, p2, p3)
+            result[angle_name] = calculate_angle_without_z(p1, p2, p3)
         
         #좌표 보간으로 인해 사용 x
         '''
