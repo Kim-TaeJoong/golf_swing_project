@@ -353,6 +353,6 @@ if __name__ == "__main__":
     print(aligned_df[['pro_frame', 'user_frame', 'pro_r_elbow', 'user_r_elbow', 'diff_r_elbow']].head(10).to_string(index=False))
 
     PLOT_OUT = os.path.join(ROOT, 'data', 'processed', 'dtw_alignment_v2.png')
-    events = events = {'Address': 31, 'Takeaway' : 74 ,'Mid-Backswing' : 266, 'Top': 371,'Downswing' : 387,'Impact': 489,'Follow-through' : 536,'Finish' : 735}
+    events = {'Address': 31, 'Takeaway' : 74 ,'Mid-Backswing' : 266, 'Top': 371,'Downswing' : 387,'Impact': 489,'Follow-through' : 536,'Finish' : 735}
     plot_alignment_v2(PRO_LM, USER_LM, feature='r_wrist_y', events=events,
                       use_landmarks=True, save_path=PLOT_OUT)
