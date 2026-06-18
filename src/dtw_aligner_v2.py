@@ -123,14 +123,21 @@ def _process_landmarks(landmarks_path: str) -> pd.DataFrame:
     feat_df[ANGLE_COLS] = feat_df[ANGLE_COLS].rolling(window=3, center=True, min_periods=1).median()
 
     # 4. 어드레스 프레임 탐지
+    #    3번 단계의 임시 per-frame 정규화 결과를 이용해 어드레스를 찾는다.
     addr_idx = _get_address_idx(feat_df)
     addr_lm  = df.loc[addr_idx]
+
+    # v2 핵심: 어드레스 시점 골반 중심을 딱 한 번만 계산해 고정 원점으로 사용
+    # 기존 방식(매 프레임 현재 골반을 원점으로 사용)에서는
+    # 스윙 중 골반이 이동하면 머리·손 좌표가 반대 방향으로 튀는 부작용이 생긴다.
+    # 고정 원점을 쓰면 '어드레스 대비 얼마나 움직였는가'를 정확히 추적할 수 있다.
     px_fixed = (addr_lm['x23'] + addr_lm['x24']) / 2
     py_fixed = (addr_lm['y23'] + addr_lm['y24']) / 2
 
     print(f"[landmarks] address idx: {addr_idx} | fixed pelvis: ({px_fixed:.4f}, {py_fixed:.4f})")
 
     # 5. 위치 특징을 어드레스 골반 고정 기준으로 재계산
+    #    3번 단계에서 구한 임시값을 덮어쓴다.
     feat_df['r_wrist_x']   = df['x16'].values - px_fixed
     feat_df['r_wrist_y']   = df['y16'].values - py_fixed
     feat_df['l_wrist_x']   = df['x15'].values - px_fixed
@@ -157,14 +164,23 @@ def _normalize(df: pd.DataFrame, addr_idx: int = None) -> tuple:
     if addr_idx is None:
         addr_idx = _get_address_idx(df)
     addr_row  = df.loc[addr_idx]
+
+    # 체형 스케일: 어드레스 시점의 골반~머리 수직거리.
+    # 키가 다른 선수끼리 비교할 때 좌표값의 절대 크기 차이를 제거한다.
     body_scale = abs(addr_row[BODY_SCALE_COL])
     if body_scale < 1e-6:
-        body_scale = 1.0
+        body_scale = 1.0  # 데이터 이상치 방어: 0으로 나누기 방지
 
     normed = {}
+
+    # 위치 피처: 어드레스 기준 상대 변위를 체형 스케일로 나눠 무차원화
+    # → 선수마다 다른 카메라 거리·체격 차이를 제거하고 '움직임 비율'만 남긴다
     for col in POSITION_COLS:
         if col in df.columns:
             normed[col] = (df[col] - addr_row[col]) / body_scale
+
+    # 각도 피처: 최대 각도 범위(180°)로 나눠 [−1, 1] 스케일로 통일
+    # → 위치 피처와 단위를 맞춰 DTW 거리 계산 시 특정 피처가 과도하게 지배하지 않도록 함
     for col in ANGLE_COLS:
         if col in df.columns:
             normed[col] = (df[col] - addr_row[col]) / 180.0
@@ -212,6 +228,9 @@ def align_swings_v2(
         pro_frame, user_frame,
         pro_{angle}, user_{angle}, diff_{angle}  (ANGLE_COLS 전체)
     """
+    # ── Step 1. 데이터 로드 & 위치 특징 재계산 ───────────────────────
+    # use_landmarks=True: raw landmarks CSV → 어드레스 골반 고정 기준으로 전처리 (권장)
+    # use_landmarks=False: 이미 저장된 angle_enhanced.csv 그대로 사용
     if use_landmarks:
         pro_df,  pro_addr_idx  = _process_landmarks(pro_path)
         user_df, user_addr_idx = _process_landmarks(user_path)
@@ -219,32 +238,46 @@ def align_swings_v2(
         pro_df,  pro_addr_idx  = _load(pro_path), None
         user_df, user_addr_idx = _load(user_path), None
 
+    # ── Step 2. 어드레스 기준 정규화 ─────────────────────────────────
+    # 두 선수의 좌표·각도를 동일한 스케일로 변환해 DTW 거리 계산에 입력한다.
     pro_normed,  pro_meta  = _normalize(pro_df,  pro_addr_idx)
     user_normed, user_meta = _normalize(user_df, user_addr_idx)
 
     print(f"[DTW v2] pro  - address idx: {pro_meta['address_idx']}, body_scale: {pro_meta['body_scale']:.4f}")
     print(f"[DTW v2] user - address idx: {user_meta['address_idx']}, body_scale: {user_meta['body_scale']:.4f}")
 
+    # ── Step 3. DTW 정렬 ─────────────────────────────────────────────
+    # DTW는 1D 시계열 하나를 기준으로 정렬 경로를 계산한다.
+    # 기준 피처(feature)의 정규화된 값을 float64 배열로 변환.
     pro_seq  = pro_normed[feature].fillna(0).values.astype(np.float64)
     user_seq = user_normed[feature].fillna(0).values.astype(np.float64)
 
+    # Sakoe-Chiba 밴드: 두 시퀀스 길이 중 긴 쪽의 window_ratio 비율만큼만
+    # 대각선에서 벗어나도록 허용한다.
+    # 너무 넓으면 의미 없는 정렬이 생기고, 너무 좁으면 유연성이 사라진다.
     window = int(max(len(pro_seq), len(user_seq)) * window_ratio)
     print(f"[DTW v2] pro frames: {len(pro_seq)}, user frames: {len(user_seq)}, window: {window}")
 
+    # warping_path: 최소 누적 비용 경로를 반환.
+    # path = [(pro_idx_0, user_idx_0), (pro_idx_1, user_idx_1), ...]
+    # 각 쌍은 "프로의 이 프레임 ↔ 사용자의 이 프레임이 같은 동작 단계"임을 의미한다.
     path = dtw.warping_path(pro_seq, user_seq, window=window)
     print(f"[DTW v2] warping path length: {len(path)}")
 
+    # ── Step 4. 결과 DataFrame 구성 ───────────────────────────────────
     rows = []
     for pro_idx, user_idx in path:
         row = {
             'pro_frame':  int(pro_df.loc[pro_idx,  'frame']),
             'user_frame': int(user_df.loc[user_idx, 'frame']),
         }
+        # 정규화 전 원본 각도값을 꺼낸다: feedback에서 실제 각도 차이를 보여줘야 하므로.
         for col in ANGLE_COLS:
             pv = pro_df.loc[pro_idx,  col] if col in pro_df.columns  else np.nan
             uv = user_df.loc[user_idx, col] if col in user_df.columns else np.nan
             row[f'pro_{col}']  = pv
             row[f'user_{col}'] = uv
+            # diff: 프로 - 사용자. 양수면 사용자가 프로보다 각도가 작다는 뜻.
             row[f'diff_{col}'] = (
                 pv - uv if not (np.isnan(pv) or np.isnan(uv)) else np.nan
             )
@@ -265,6 +298,7 @@ def plot_alignment_v2(
     """DTW v2 정렬 전/후 비교 시각화. save_path 지정 시 PNG 저장."""
     import matplotlib.pyplot as plt
 
+    # align_swings_v2와 동일한 Step 1~3을 거쳐 정렬 경로를 구한다.
     if use_landmarks:
         pro_df,  pro_addr_idx  = _process_landmarks(pro_path)
         user_df, user_addr_idx = _process_landmarks(user_path)
@@ -281,6 +315,7 @@ def plot_alignment_v2(
     window = int(max(len(pro_seq), len(user_seq)) * window_ratio)
     path   = dtw.warping_path(pro_seq, user_seq, window=window)
 
+    # 워핑 경로를 따라 두 시퀀스를 같은 길이로 늘린다 → 정렬 후 그래프용
     pro_aligned  = np.array([pro_seq[i]  for i, _ in path])
     user_aligned = np.array([user_seq[j] for _, j in path])
     dist = dtw.distance(pro_seq, user_seq, window=window)
