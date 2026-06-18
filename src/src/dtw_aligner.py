@@ -227,5 +227,5 @@ if __name__ == "__main__":
     print(aligned_df[['pro_frame', 'user_frame', 'pro_r_elbow', 'user_r_elbow', 'diff_r_elbow']].head(10).to_string(index=False))
 
     # 시각화 (이벤트 마커 포함)
-    events = {'Address': 53, 'Takeaway': 83, 'Top': 365, 'Impact': 489, 'Finish': 709}
+    events = {'Address': 31, 'Takeaway' : 74 ,'Mid-Backswing' : 266, 'Top': 371,'Downswing' : 387,'Impact': 489,'Follow-through' : 536,'Finish' : 735}
     plot_alignment(PRO_PATH, USER_PATH, feature='r_wrist_y', events=events)
