@@ -39,6 +39,34 @@ def calculate_angle(a, b, c):
 
     return angle_deg
 
+def calculate_angle_without_z(a, b, c):
+    """
+    세 점의 x, y 좌표를 받아 사이 각도(degrees)를 계산합니다.
+    (b점이 각도의 꼭짓점입니다.)
+    """
+    # 원본 3D 좌표에서 Z축을 버리고 X[0], Y[1] 좌표만 가져와 2D 평면으로 만듭니다.
+    a = np.array([a[0], a[1]]) 
+    b = np.array([b[0], b[1]]) 
+    c = np.array([c[0], c[1]]) 
+
+    # 1. 꼭짓점을 기준으로 두 개의 선(벡터)을 만듭니다.
+    v1 = a - b
+    v2 = c - b
+
+    # 2. 두 선이 이루는 각도를 삼각함수(코사인 제2법칙)로 계산합니다.
+    cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+    cosine_angle = np.clip(cosine_angle, -1.0, 1.0) # 계산 오차 방지
+    
+    # 3. 라디안 값을 우리가 아는 '도(degree)'로 바꿉니다.
+    angle_rad = np.arccos(cosine_angle)
+    angle_deg = np.degrees(angle_rad)
+
+    # 4. 스포츠 분석에서는 보통 180도 이하의 내각을 씁니다.
+    if angle_deg > 180.0:
+        angle_deg = 360 - angle_deg
+
+    return angle_deg
+
 #상하체의 꼬임 각도를 구함
 def calculate_x_factor(s_left, s_right, h_left, h_right):
     #어깨선 벡터
