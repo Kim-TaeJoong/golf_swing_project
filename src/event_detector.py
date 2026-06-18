@@ -8,6 +8,7 @@ def detect_swing_event(df):
     events = {}
 
     #Top of Swing
+    #x_factor 평균 이상이며 손목 위치 최대인 지점
     threshold = detect_df['x_factor'].mean()
     valid_mask = detect_df['x_factor'] > threshold
     valid_df = detect_df[valid_mask]
@@ -22,10 +23,12 @@ def detect_swing_event(df):
     post_top_df = detect_df.loc[top_idx :]
 
     #Address
+    #움직임이 가장 적은 10프레임 구간
     address_idx = pre_top_df['r_wrist_x'].rolling(window=10).var().idxmin()
     events['Address'] = int(df.loc[address_idx, 'frame'])
 
     #Takeaway
+    #Address 정지 상태의 4배의 움직임이 있을 경우 Takeaway로 판단
     address_idx = pre_top_df.index.get_loc(events['Address'])
     takeaway_df = pre_top_df.iloc[address_idx:]
 
@@ -74,14 +77,14 @@ def detect_swing_event(df):
         events['Downswing'] = int(df.loc[start_idx, 'frame'])
         
     elif is_decreasing.any():
-        # 혹시 영상이 너무 짧거나 데이터가 부족해서 5연속이 안 나오면, 
-        # 안전장치(Fallback)로 기존처럼 1프레임 감소라도 잡습니다.
+        #영상이 너무 짧거나 데이터가 부족해서 5연속이 안 나올 시 안전장치(Fallback)로 기존처럼 1프레임 감소라도 잡음
         events['Downswing'] = int(post_top_df[is_decreasing].index[0])
         
     else:
         events['Downswing'] = events['Top of Swing'] + 1
 
     #Impact
+    #손목이 가장 낮은 지점 주변에서 가속이 가장 빠른 지점
     '''
     #r_wrist_y 위치가 상위 30% 선택
     wrist_threshold = post_top_df['r_wrist_y'].quantile(0.7)
@@ -96,11 +99,11 @@ def detect_swing_event(df):
     # 1. 탑 이후 구간에서 손목이 가장 낮게 내려온 지점(Y값 최대)
     lowest_wrist_idx = post_top_df['r_wrist_y'].idxmax()
 
-    # 2. 손목의 X축 이동 속도(변화량)가 가장 빨라지는 지점을 찾습니다.
-    # 타격 직전이 보통 클럽과 손목의 가속이 최대가 되는 지점입니다.
+    # 2. 손목의 X축 이동 속도(변화량)가 가장 빨라지는 지점
+    # 타격 직전이 보통 클럽과 손목의 가속이 최대가 되는 지점
     post_top_df['wrist_v_x'] = post_top_df['r_wrist_x'].diff().abs()
 
-    # 3. 손목 최하점 근처(전후 10프레임 내외)에서 속도가 가장 빠른 지점을 임팩트로 확정합니다.
+    # 3. 손목 최하점 근처(전후 10프레임 내외)에서 속도가 가장 빠른 지점을 임팩트로 확정
     search_range = post_top_df.loc[lowest_wrist_idx - 5 : lowest_wrist_idx + 5]
     if not search_range.empty:
         impact_idx = search_range['wrist_v_x'].idxmax()
@@ -110,16 +113,18 @@ def detect_swing_event(df):
     events['Impact'] = int(df.loc[impact_idx, 'frame'])
 
     #Finish
+    #Top 이후 손목의 움직임이 가장 적은 곳
     post_impact_df = detect_df.loc[impact_idx:]
     events['Finish'] = int(post_impact_df['r_wrist_x'].rolling(window=10).var().idxmin())
 
     #Mid-Backswing
+    #손목의 위치와 어깨의 위치가 최소가 되는 지점
     backswing_zone = detect_df.loc[events['Takeaway'] : events['Top of Swing']]
     mid_back_idx = (backswing_zone['r_wrist_y'] - backswing_zone['r_shoulder_y']).abs().idxmin()
     events['Mid-Backswing'] = int(df.loc[mid_back_idx, 'frame'])
 
     #FollowThrough
-    
+    #손목의 위치가 어깨의 위치를 넘으며 팔꿈치 각도가 최대인 지점
     follow_zone = detect_df.loc[events['Impact'] : events['Finish']]
     lower_condition = follow_zone['r_wrist_y'] > follow_zone['r_shoulder_y']
     valid_zone = follow_zone[lower_condition]
