@@ -3,7 +3,7 @@ import numpy as np
 from utils.utils import calculate_angle, calculate_angle_without_z, ANGLE_JOINTS, normalize_by_pelvis_csv, calculate_x_factor
 import os
 
-csv_path = os.path.join('data','processed','tigerwoods_swing_landmarks_enhanced.csv')
+csv_path = os.path.join('data','processed','morikawa_swing_landmarks_enhanced.csv')
 df = pd.read_csv(csv_path)
 
 #신뢰도(v) 낮은 좌표 Nan 처리
@@ -21,7 +21,7 @@ df[coord_cols] = df[coord_cols].rolling(window=5, min_periods=1, center=True).me
 #smoothing
 cols_to_smooth = [col for col in df.columns if col.startswith(('x', 'y', 'z'))]
 
-# 골라낸 x, y, z 좌표들만 부드럽게 평균을 냅니다. (v 값은 원본 그대로 유지됨)
+# 골라낸 x, y, z 좌표들만 부드럽게 평균. (v 값은 원본 그대로 유지됨)
 df[cols_to_smooth] = df[cols_to_smooth].rolling(window=5, min_periods=1, center=True).mean()
 '''
 
@@ -142,4 +142,5 @@ angle_cols = ['r_elbow', 'l_elbow', 'r_shoulder', 'l_shoulder', 'r_knee', 'l_kne
 result_df[angle_cols] = result_df[angle_cols].rolling(window=3, center=True, min_periods=1).median()
 # 2차 평균으로 한번더 제거(과할 수도 있어 일단 사용 x)
 #result_df[angle_cols] = result_df[angle_cols].rolling(window=3, min_periods=1, center=True).mean()
-result_df.to_csv('data/processed/tigerwoods_angle_enhanced.csv',index= False)
+result_df[angle_cols] = result_df[angle_cols].rolling(window=3, center=True, min_periods=1).median()
+result_df.to_csv('data/processed/morikawa_angle_enhanced.csv',index= False)
